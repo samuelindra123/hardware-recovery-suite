@@ -1,65 +1,65 @@
-# Panduan Lengkap Transformasi Headless Advan XTab (Android 13)
+# Rekayasa Transformasi Headless Android 13 (Advan XTab)
 
-**Developer:** Samuel Indra Bastian  
-**Email:** comdonate9@gmail.com  
-**Project:** Hardware Recovery Suite  
-**Date:** September 2026  
+**Author / Hardware Engineer:** Samuel Indra Bastian  
+**Project:** Mobile Hardware Recovery & Embedded Systems Forensics  
+**Target Platform:** Advan XTab (Model: 8004 / Unisoc Tiger T310 / Android 13 - SDK 33)  
+**System Architecture:** Headless Zero-Cable Wireless Computing Appliance  
 
 ---
 
 ## 1. Latar Belakang & Tantangan Rekayasa
 
-Sebuah unit tablet **Advan XTab (Model: 8004 / Unisoc Tiger T310 / Android 13 - SDK 33)** mengalami kerusakan fisik total pada modul layar LCD (layar mati / gelap gulita / pecah, dan fungsi layar sentuh fisik mati). Meskipun demikian, seluruh subsistem internal:
-- Motherboard dan prosesor Unisoc T310
-- Memori RAM 4GB dan penyimpanan internal eMMC
-- Modul nirkabel Wi-Fi & Bluetooth
-- Baterai dan subsistem pengisian daya USB Type-C
+Sebuah unit tablet **Advan XTab** mengalami kerusakan fisik total pada modul layar kaca LCD (layar mati, gelap gulita, pecah, dan lapisan sentuh digitizer fisik tidak berfungsi). Namun seluruh subsistem inti:
+- SoC Unisoc Tiger T310 (1x Cortex-A75 @ 2.0 GHz + 3x Cortex-A55 @ 1.8 GHz)
+- Memori 4GB LPDDR4X RAM & 64GB Penyimpanan Internal
+- Wi-Fi 802.11 a/b/g/n/ac & Bluetooth
+- Baterai dan subsistem manajemen daya Type-C
 
-berada dalam kondisi **100% sehat dan berfungsi normal**.
+berada dalam kondisi normal 100%.
 
-### Tujuan Proyek:
-Mengubah tablet berlayar rusak ini menjadi **perangkat komputasi mandiri tanpa kepala (*Headless Computing Appliance*)** yang dapat dioperasikan secara **100% nirkabel tanpa kabel (*zero-cable operation*)** dari mana saja melalui internet menggunakan HP atau komputer.
+### Objektif Proyek:
+Merancang dan mengimplementasikan sistem agar tablet ini dapat berfungsi sebagai **mesin komputasi mandiri tanpa layar (*Headless Computing Node*)**, beroperasi secara **100% nirkabel tanpa kabel (*Zero-Cable Operation*)**, dan dapat dikendalikan penuh dari jarak jauh (*multi-network remote desktop*).
 
 ---
 
-## 2. Fase 1: Otorisasi ADB Tanpa Layar (Blind ADB Pairing)
+## 2. Fase 1: Otorisasi Kriptografi ADB Tanpa Layar (Blind ADB Pairing)
 
-Tantangan terbesar pada perangkat Android dengan layar mati adalah dialog keamanan Android yang meminta konfirmasi: *"Izinkan USB Debugging dari komputer ini? [ ] Selalu izinkan dari komputer ini [Batal] [Izinkan]"*.
+Tantangan awal pada perangkat dengan layar mati adalah dialog keamanan sistem Android yang meminta persetujuan otorisasi kunci RSA: *"Izinkan USB Debugging dari komputer ini?"*.
 
-### Solusi Rekayasa: Emulasi Keyboard OTG
-Kami memanfaatkan kemampuan *scrcpy* dalam mode Human Interface Device (HID/OTG) yang menginjeksikan sinyal keyboard USB mentah langsung ke kernel Linux Android:
+### Rekayasa Sinyal HID via USB OTG:
+Kami memanfaatkan protokol Human Interface Device (HID) USB untuk menginjeksikan sinyal perangkat keras keyboard mentah langsung ke subsistem kernel Linux Android:
 
 ```cmd
 scrcpy.exe --otg
 ```
 
-Urutan tombol pintas buta (*blind key sequence*):
-1. **[TAB]** $\rightarrow$ Memindahkan fokus kursor ke kotak centang *"Selalu izinkan dari komputer ini"*.
-2. **[SPACE]** $\rightarrow$ Mencentang kotak persetujuan permanen.
-3. **[TAB]** $\rightarrow$ Memindahkan fokus ke tombol *"Izinkan / OK"*.
-4. **[ENTER]** $\rightarrow$ Mengeksekusi persetujuan.
+Urutan eksekusi penekanan tombol buta (*Blind Key Sequence*):
+1. **[TAB]** $\rightarrow$ Memindahkan fokus elemen UI ke kotak centang *"Selalu izinkan dari komputer ini"*.
+2. **[SPACE]** $\rightarrow$ Mengaktifkan centang permanen untuk menyimpan kunci publik RSA laptop ke direktori sistem `/data/misc/adb/adb_keys`.
+3. **[TAB]** $\rightarrow$ Menggeser fokus kursor ke tombol aksi *"Izinkan / OK"*.
+4. **[ENTER]** $\rightarrow$ Menyetujui otorisasi.
 
-**Hasil:** Otorisasi kunci kriptografi RSA laptop tersimpan permanen di dalam partisi sistem Android (`/data/misc/adb/adb_keys`), menghasilkan status `A8004ST310CT044549 device`.
+**Hasil:** Otorisasi tersimpan permanen di memori perangkat, menghasilkan status `device` resmi tanpa perlu interaksi layar fisik.
 
 ---
 
-## 3. Fase 2: Pengerasan Sistem Headless (Keep-Alive Hardening)
+## 3. Fase 2: Pengerasan Kernel & Subsistem Android (Keep-Alive Hardening)
 
-Agar tablet dapat beroperasi 24/7 tanpa terkunci atau tertidur saat ditinggalkan tanpa pengawasan, serangkaian perintah sistem dieksekusi via ADB:
+Agar tablet tetap siaga (*always-on*) selama terhubung ke sumber daya charger dan tidak masuk ke mode tidur mendalam yang mematikan stack jaringan:
 
 ```bash
-# 1. Menjaga CPU dan sistem grafis tetap aktif saat terhubung ke sumber daya
+# 1. Konfigurasi CPU & Display State saat terhubung ke catu daya
 adb shell "svc power stayon true"
 adb shell "settings put global stay_on_while_plugged_in 3"
 
-# 2. Menyetel batas waktu mati layar ke nilai maksimum Integer 32-bit (24.8 hari)
+# 2. Perpanjangan batas waktu timeout layar ke batas maksimum sistem (24.8 hari)
 adb shell "settings put system screen_off_timeout 2147483647"
 
-# 3. Menonaktifkan sistem penguncian layar (Lockscreen Bypass)
+# 3. Menonaktifkan layar kunci Android (Bypass Lockscreen)
 adb shell "locksettings set-disabled true"
 adb shell "settings put secure lockscreen.disabled 1"
 
-# 4. Membuka port ADB nirkabel TCP/IP di port standar
+# 4. Membuka port ADB TCP/IP nirkabel pada port standar 5555
 adb tcpip 5555
 ```
 
@@ -67,28 +67,26 @@ adb tcpip 5555
 
 ## 4. Fase 3: Arsitektur Remote Nirkabel Multi-Jaringan (AnyDesk + AD1)
 
-Agar tablet dapat diakses dari jaringan mana saja (bahkan di luar rumah menggunakan paket data seluler tanpa kabel), kami mengonfigurasi **AnyDesk Android v9.0.0**:
+Untuk memungkinkan pengendalian tablet dari luar rumah (lintas jaringan publik/seluler):
 
-- **ID Unik AnyDesk Tablet:** **`1 748 101 943`**
-
-### Rintangan 1: Proteksi Anti-Tapjacking Android 13 (MediaProjection)
-Android 13 memiliki proteksi ketat yang memblokir klik mouse virtual pada pop-up dialog sistem *"Mulai merekam atau melakukan transmisi dengan AnyDesk?"*.
-- **Solusi:** Injeksi izin level AppOps melalui ADB:
+### Tantangan 1: Proteksi Anti-Tapjacking Android 13 (MediaProjection)
+Android 13 secara bawaan memblokir klik mouse virtual pada pop-up dialog sistem izin perekaman layar (*MediaProjection Permission Activity*).
+- **Solusi Rekayasa:** Injeksi izin level AppOps via shell:
   ```bash
   adb shell "appops set com.anydesk.anydeskandroid PROJECT_MEDIA allow"
   ```
-  Perintah ini mengunci izin transmisi layar secara permanen, menghilangkan pop-up konfirmasi berulang selamanya.
+  Perintah ini mengunci izin secara permanen di database sistem, meniadakan dialog persetujuan berulang selamanya.
 
-### Rintangan 2: Keterbatasan View-Only (Remote Input Blocking)
-Secara bawaan, Android melarang aplikasi remote desktop menginjeksikan klik atau sentuhan tanpa plugin aksesibilitas berizin khusus.
-- **Solusi:**
-  1. Memasang plugin resmi: **AnyDesk Control Plugin AD1** (`com.anydesk.adcontrol.ad1`).
-  2. Mengaktifkan layanan aksesibilitas via shell:
+### Tantangan 2: Pembatasan Akses Input Sentuhan (View-Only Bypass)
+Sistem keamanan Android membatasi injeksi event sentuh/mouse dari aplikasi pihak ketiga tanpa service aksesibilitas.
+- **Solusi Rekayasa:**
+  1. Pemasangan modul kontrol resmi: **AnyDesk Control Plugin AD1** (`com.anydesk.adcontrol.ad1`).
+  2. Pendaftaran dan pengikatan (*binding*) service aksesibilitas:
      ```bash
      adb shell "settings put secure enabled_accessibility_services com.anydesk.adcontrol.ad1/com.anydesk.adcontrol.AccService"
      adb shell "settings put secure accessibility_enabled 1"
      ```
-  3. Mendaftarkan AnyDesk ke dalam Whitelist Penghemat Baterai (*Doze Mode Whitelist*):
+  3. Pembebasan pembatasan baterai (*Doze Mode Whitelist*) agar koneksi tidak tertutup saat idle:
      ```bash
      adb shell "dumpsys deviceidle whitelist +com.anydesk.anydeskandroid"
      adb shell "dumpsys deviceidle whitelist +com.anydesk.adcontrol.ad1"
@@ -98,23 +96,23 @@ Secara bawaan, Android melarang aplikasi remote desktop menginjeksikan klik atau
 
 ---
 
-## 5. Arsitektur Operasional Harian (Dual Access Mode)
+## 5. Arsitektur Operasional Mandiri (Dual Connection Routing)
 
-Tablet ini kini memiliki dua jalur akses mandiri:
+Sistem ini mendukung dua mode akses yang saling melengkapi:
 
 ```
-[ ADVAN XTAB HEADLESS UNIT ] (Tersambung ke Charger Listrik 24/7 di Sudut Rumah)
+[ ADVAN XTAB HEADLESS APPLIANCE ] (Ditenagai Charger Tembok 24/7 di Sudut Ruangan)
            │
-           ├── JALUR 1: LOKAL WI-FI (High-Speed Latency Rendah)
-           │   └── Jalur: scrcpy wireless via adb connect 192.168.1.15:5555
-           │   └── Karakteristik: 60 FPS, Latensi ~0ms, Jernih tanpa kompresi internet.
+           ├── [1] LOCAL HIGH-SPEED PATH (Wi-Fi Lokal Rumah)
+           │   ├── Protokol: scrcpy wireless via adb connect <IP_TABLET>:5555
+           │   └── Performa: 60 FPS, Latensi ~0ms, Resolusi Asli 800x1280.
            │
-           └── JALUR 2: GLOBAL WAN / INTERNET (Akses Dari Mana Saja)
-               └── Jalur: AnyDesk Cloud Server via ID 1 748 101 943
-               └── Karakteristik: Dapat dibuka dari smartphone Android/iOS atau Laptop
-                   menggunakan koneksi 4G/5G di mana pun Anda berada.
+           └── [2] GLOBAL WAN REMOTE PATH (Akses Dari Mana Saja via Internet)
+               ├── Protokol: AnyDesk Cloud Relay
+               └── Performa: Dapat diakses dari smartphone (Android/iOS) atau PC luar kota
+                   menggunakan koneksi kuota seluler (4G/5G).
 ```
 
 ---
 
-*Dokumentasi ini membuktikan bahwa keterbatasan fisik hardware layar pecah dapat diatasi secara elegan melalui rekayasa sistem operasi dan protokol remote nirkabel.*
+*Laporan teknis ini disusun secara independen sebagai dokumentasi rekayasa perangkat headless Android oleh Samuel Indra Bastian.*

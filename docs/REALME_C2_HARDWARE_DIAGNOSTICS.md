@@ -1,103 +1,135 @@
-# Realme C2 (MT6765 / RMX1941) Hardware Diagnostics & Forensics Report
+# Realme C2 (MT6765 / RMX1941) Hardware Diagnostics & SMD Rework Report
 
-**Developer:** Samuel Indra Bastian  
-**Email:** comdonate9@gmail.com  
-**Project:** Hardware Recovery Suite  
-**Date:** September 2026  
+**Author / Hardware Engineer:** Samuel Indra Bastian  
+**Project:** Mobile Hardware Recovery & Embedded Systems Forensics  
+**Target Platform:** Realme C2 (RMX1941 / Oppo A1k / platform `cereus`)  
+**Architecture:** MediaTek MT6765V Helio P22 (Octa-core Cortex-A53) + BGA eMCP Storage  
 
 ---
 
 ## 1. Ringkasan Eksekutif (Executive Summary)
 
-Penyelidikan mendalam dilakukan terhadap satu unit ponsel cerdas **Realme C2 (Model: RMX1941 / Oppo A1k / cereus)** yang berada dalam kondisi *Hard Brick* (layar hitam total, tidak ada respon terhadap tombol power, tidak ada indikator getar atau pengisian daya).
+Laporan teknis ini mendokumentasikan investigasi forensik tingkat rendah (*low-level protocol forensics*) terhadap satu unit smartphone **Realme C2 (RMX1941)** yang mengalami kondisi *Hard Brick* total. 
 
-Eksperimen diagnostik tingkat rendah (*low-level protocol forensics*) berhasil membuktikan secara ilmiah dan matematis bahwa **silikon prosesor (MediaTek MT6765 SoC) berada dalam kondisi prima**, namun **chip memori internal (eMCP BGA-153/221) telah mengalami kerusakan fisik permanen (*Physical Flash Memory Hardware Failure*)**. Temuan ini memvalidasi secara objektif diagnosis teknisi hardware (Timorritel) mengenai status *Beyond Economical Repair* (BER).
+Pengujian diagnostik berbasis perangkat keras membuktikan secara definitif bahwa:
+1. **SoC MediaTek MT6765 (CPU, osilator 26MHz, USB PHY, internal 128KB SRAM) berada dalam kondisi normal.**
+2. **Chip memori terintegrasi (eMCP BGA-153/221) mengalami kerusakan perangkat keras permanen (*Physical Flash Memory Failure*).**
+3. Pemulihan unit ini membutuhkan intervensi fisik tingkat lanjut berupa **BGA SMD Rework** (pengangkatan IC, *reballing*, penggantian IC eMCP baru, dan penulisan partisi RPMB via alat pemrogram JTAG).
 
 ---
 
-## 2. Spesifikasi Arsitektur Perangkat Keras
+## 2. Analisis Arsitektur Perangkat Keras
 
-| Komponen | Spesifikasi Teknis |
+| Parameter | Spesifikasi Teknis |
 | :--- | :--- |
-| **Model Perangkat** | Realme C2 (RMX1941 / Oppo CPH1923 / platform `cereus`) |
-| **Chipset / SoC** | MediaTek MT6765V (Helio P22, 12nm FinFET) |
+| **Model Perangkat** | Realme C2 (RMX1941 / platform `cereus`) |
+| **System-on-Chip (SoC)** | MediaTek MT6765V (Helio P22, arsitektur 12nm FinFET) |
 | **CPU Core** | Octa-core ARM Cortex-A53 (4x 2.0 GHz + 4x 1.5 GHz) |
-| **Boot ROM (BROM)** | On-die 32KB Mask ROM terintegrasi langsung di dalam silicon die |
-| **Internal SRAM** | 128KB On-chip L1/L2 High-speed Scratchpad RAM |
-| **Memori Penyimpanan** | eMCP (embedded Multi-Chip Package): Kombinasi eMMC 5.1 + LPDDR3/4X DRAM |
-| **Protokol USB** | MediaTek USB VCOM / USB DA (VID: `0e8d`, PID: `0003`) |
+| **Mask ROM (BROM)** | 32KB on-die Mask ROM tertanam di dalam silikon prosesor |
+| **Internal SRAM** | 128KB on-chip L1/L2 High-speed Scratchpad RAM |
+| **Storage & RAM** | eMCP (embedded Multi-Chip Package): eMMC 5.1 + LPDDR3/LPDDR4X DRAM |
+| **Antarmuka USB** | USB VCOM CDC Serial Protocol (Vendor ID: `0e8d`, Product ID: `0003`) |
 
 ---
 
-## 3. Investigasi Daya & Intervensi Fisik
+## 3. Investigasi Catu Daya & Stabilisasi Rel Tegangan
 
-1. **Kondisi Baterai Awal:**
-   - Tegangan baterai fisik terukur **0.00V** (sel baterai telah terkuras habis di bawah ambang batas proteksi BMS).
-   - Pengisian daya standar lewat port Micro-USB gagal membangkitkan PMIC (Power Management IC).
-2. **Injeksi Daya Eksternal:**
-   - Tegangan eksternal diinjeksi langsung ke pinout VBAT dan GND menggunakan catu daya DC terukur pada **4.40V**.
-   - Kapasitor elektrolit eksternal dipasang paralel pada rel tegangan VBAT untuk menyaring riak tegangan (*voltage ripple*) dan mengantisipasi *transient current spikes* saat inisialisasi BROM.
-   - Hasil: Port USB pada motherboard langsung mendeteksi koneksi MediaTek USB Port (BROM mode).
-
----
-
-## 4. Eksploitasi Protokol BROM & Injeksi SRAM
-
-Dengan menggunakan *suite* alat forensik `mtkclient` berbasis Python, kami melakukan komunikasi langsung dengan Mask ROM (BROM) MT6765:
-
-### A. Handshake BROM (Boot ROM Handshake)
-- Port komunikasi: `COM` via USB CDC Serial (`VID:0e8d PID:0003`).
-- Mask ROM merespons sequence sinkronisasi `0xA0 0x0A 0x50 0x05`.
-- **Hasil:** **100% BERHASIL**.
-- **Kesimpulan Hardware:**
-  1. Jalur transmisi data USB D+ dan D- berfungsi sempurna.
-  2. Kristal osilator sistem (26 MHz) aktif dan berosilasi normal.
-  3. Inti prosesor ARM Cortex-A53 mampu mengeksekusi instruksi dari Mask ROM internal.
-
-### B. Payload Injection (Bypass SLA / DAA)
-- Mengeksekusi eksploitasi kerentanan *Kamakiri* untuk melewati proteksi *Secure Boot* MediaTek (SLA/DAA).
-- Payload biner diinjeksikan langsung ke dalam **128KB Internal SRAM** MT6765.
-- **Hasil:** **Payload Berhasil Dijalankan di SRAM**.
-- **Kesimpulan Hardware:** Internal SRAM MT6765 bebas dari *bad cells* dan mampu menampung kode eksekusi tingkat rendah.
+1. **Pengukuran Baterai Awal:**
+   - Tegangan sel baterai bawaan terukur **0.00V** (kondisi *deep-discharge* di bawah batas minimum proteksi BMS).
+   - Pengisian daya standar lewat jalur VBUS Micro-USB tidak mampu membangkitkan PMIC (Power Management IC).
+2. **Intervensi Catu Daya Eksternal:**
+   - Injeksi tegangan DC eksternal diterapkan langsung pada rel baterai (VBAT dan GND) sebesar **4.40V**.
+   - Kapasitor elektrolit dipasang secara paralel pada rel VBAT untuk meredam riak tegangan (*voltage ripple*) dan menyuplai lonjakan arus sesaat (*transient current spikes*) saat inisialisasi Boot ROM berlangsung.
+   - Hasil: Jalur VBUS dan USB D+/D- langsung mendeteksi koneksi MediaTek USB Port (BROM mode).
 
 ---
 
-## 5. Titik Kegagalan Fatal: Investigasi eMCP Flash Storage
+## 4. Eksploitasi Protokol BROM & Forensik Internal SRAM
 
-Setelah Download Agent Tahap 1 (DA1) aktif di dalam internal SRAM, DA1 berusaha menginisialisasi pengontrol memori eksternal (DRAM controller & eMMC bus controller) menggunakan beragam konfigurasi *Preloader* biner pabrikan:
+Menggunakan *toolkit* protokol tingkat rendah berbasis Python (`mtkclient`), komunikasi langsung dilakukan terhadap Mask ROM (BROM) MT6765:
 
-- `0766_preloader_cereus_3C2D76D046.bin` (Firmware resmi Realme C2)
-- `preloader_oppo6762_18540.bin` (Oppo A1k platform identik)
-- `0766_preloader_oppo6765_19451_94B0482E99.bin`
-- `preloader_Vivo_6762_Y8X_k62v1_64_bsp.bin`
+### A. Handshake USB BROM
+- Perangkat berhasil merespons sequence sinkronisasi serial `0xA0 0x0A 0x50 0x05`.
+- **Hasil:** **100% SUKSES**.
+- **Indikator Hardware:**
+  1. Jalur diferensial USB D+ dan D- berfungsi tanpa cacat impedansi.
+  2. Osilator kristal referensi 26 MHz aktif dan stabil.
+  3. Inti prosesor ARM Cortex-A53 mampu mengeksekusi instruksi Mask ROM internal.
 
-### Bukti Forensik Kegagalan:
+### B. Injeksi Payload Bypass SLA / DAA
+- Kerentanan *Kamakiri* dieksekusi untuk melewati mekanisme verifikasi kriptografi pabrikan (*Secure Boot SLA/DAA*).
+- Kode biner DA1 (Download Agent Tahap 1) diinjeksikan langsung ke dalam **128KB Internal SRAM** MT6765.
+- **Hasil:** **Eksekusi Payload di SRAM Berhasil**.
+- **Indikator Hardware:** Internal SRAM MT6765 berfungsi sempurna tanpa adanya sel memori yang korup.
 
-1. **Kegagalan Inisialisasi Bus eMMC:**
-   - Sinyal Command (`CMD`), Clock (`CLK`), dan Data (`DAT0-DAT7`) pada bus eMMC tidak merespons respon inisialisasi OCR (Operation Conditions Register).
-   - Pengontrol memori mengembalikan status nilai nol (`0x00000000`) atau `Timeout waiting for device`.
+---
+
+## 5. Bukti Kerusakan Fisik Chip eMCP
+
+Setelah DA1 aktif di dalam SRAM prosesor, DA1 bertugas menginisialisasi jalur bus memori eksternal (pengontrol DRAM dan pengontrol bus eMMC) menggunakan konfigurasi Preloader biner resmi (`0766_preloader_cereus_3C2D76D046.bin`, `oppo6762_18540.bin`, dll).
+
+### Data Forensik Kegagalan:
+1. **Bus eMMC Tidak Merespons:**
+   - Sinyal Command (`CMD`), Clock (`CLK`), dan Data (`DAT0-DAT7`) pada bus eMMC tidak memberikan respon terhadap register OCR (Operation Conditions Register).
+   - Controller mengembalikan status nilai nol (`0x00000000`) atau *timeout*.
 2. **Kegagalan Pembacaan Sektor Fisik:**
-   - Perintah `dumppreloader` gagal membaca partisi `boot0` dan `boot1` pada memori eMMC.
-   - Perintah `printgpt` (pembacaan GUID Partition Table pada sektor LBA 1) mengembalikan nilai *Read Error / Buffer Empty*.
-   - Pembacaan alamat memori mentah pada register `0x00000000` mengalami *bus stall*.
+   - Pembacaan partisi boot sistem (`boot0` dan `boot1`) via `dumppreloader` menghasilkan kegagalan pembacaan (*I/O error*).
+   - Pembacaan tabel partisi GPT (`printgpt`) pada LBA 1 mengembalikan nilai *Buffer Empty / Read Failure*.
+3. **Kesimpulan:** 
+   Silikon CPU normal, namun chip eMCP internal telah mati secara fisik akibat ausnya gerbang oksida sel NAND (*NAND flash endurance exhaustion*), kerusakan kontroler internal kemasan BGA, atau retaknya bola solder BGA di bawah chip.
 
 ---
 
-## 6. Kesimpulan Diagnostik & Analisis Finansial
+## 6. Rencana Kerja Rekayasa Lanjutan: BGA SMD Rework & Penggantian IC
 
-1. **Penyebab Utama Kematian HP:**
-   - **Kerusakan Fisik Total pada eMCP IC.** Penyebab teknis:
-     - Ausnya gerbang oksida sel NAND flash (*NAND flash endurance exhaustion*).
-     - Rusaknya mikrokontroler internal eMMC di dalam kemasan BGA.
-     - Keretakan bola solder BGA (*solder ball fracture*) di bawah chip akibat benturan mekanis atau panas berlebih.
-2. **Status Perbaikan (BER - Beyond Economical Repair):**
-   - Perbaikan unit ini **tidak dapat diselesaikan melalui software, flashing, atau modifikasi kabel**.
-   - Satu-satunya metode perbaikan fisik adalah:
-     1. Pengangkatan chip eMCP menggunakan *Hot Air Rework Station* (BGA rework).
-     2. Pembersihan pad PCB dan *reballing*.
-     3. Penggantian IC eMCP baru yang sudah diisi partisi RPMB (*Replay Protected Memory Block*) dan kunci kriptografi yang cocok dengan CPU MT6765 via *EasyJTAG Plus / UFI Box*.
-   - Biaya perbaikan tersebut jauh melampaui nilai pasaran unit bekas Realme C2, sehingga keputusan untuk menghentikan proyek dan memindahkan fokus ke unit fungsional lain adalah keputusan rekayasa yang paling tepat dan rasional.
+Untuk menghidupkan kembali motherboard Realme C2 ini ke status fungsional penuh, langkah perbaikan tingkat komponen (*chip-level repair*) akan dilakukan saat fasilitas peralatan SMD telah lengkap:
+
+### A. Kebutuhan Peralatan (Tooling Requirements)
+1. **Hot Air Blower Rework Station** (Suhu terkontrol dengan nozzle presisi, misal Quick 861DW atau sekelasnya).
+2. **Soldering Station & T12/JBC Precision Tips** (Ujung pisau K-type untuk pembersihan pad).
+3. **Stereomicroscope** (Perbesaran optik 7X - 45X untuk inspeksi jalur dan bola solder).
+4. **BGA Reballing Stencil BGA-153 / BGA-221** khusus platina MTK/eMCP.
+5. **Pasta Timah Solder (Solder Paste)** bertitik leleh sedang (Sn63Pb37 / 183°C).
+6. **Fluks Kualitas Tinggi** (Amtech NC-559-ASM atau sejenisnya tanpa residu korosif).
+7. **BGA Underfill Epoxy Remover Liquid** untuk melunakkan lem pabrik di sekitar chip.
+8. **JTAG Programmer Box** (EasyJTAG Plus, UFI Box, atau Medusa Pro II).
+
+### B. Prosedur Kerja BGA Rework (Step-by-Step Roadmap)
+
+```
+[ 1. Pre-heating & Underfill Removal ]
+  └── Panaskan motherboard pada suhu 150°C - 180°C.
+  └── Bersihkan lem underfill di sekeliling IC eMCP dengan pisau skrap khusus.
+               │
+[ 2. Desoldering Chip eMCP Rusak ]
+  └── Aplikasikan fluks NC-559 pada sisi IC.
+  └── Arahkan semburan udara panas merata pada suhu 350°C - 380°C (Airflow 60-70%).
+  └── Angkat chip eMCP secara hati-hati menggunakan pinset tanpa merusak pad PCB.
+               │
+[ 3. Pembersihan & Restorasi Pad PCB ]
+  └── Berikan timah bertitik leleh rendah untuk menurunkan titik leleh residu timah pabrik.
+  └── Bersihkan seluruh pad motherboard menggunakan solder wick tembaga dan ujung solder K.
+  └── Inspeksi mikroskopik: Pastikan seluruh jalur VCC, VCCQ, CLK, CMD, dan DAT0-7 utuh.
+               │
+[ 4. Pemrograman IC Pengganti (JTAG Box) ]
+  └── Siapkan IC eMCP baru/donor (BGA-153 / BGA-221) yang kompatibel dengan MT6765.
+  └── Hubungkan ke EasyJTAG Plus / UFI Box socket adapter.
+  └── Konfigurasi Boot Partition (Boot Bus Config = 8-bit dual data rate, Boot1 enable).
+  └── Tulis ulang partisi firmware cadangan (preloader, boot, vbmeta, recovery).
+  └── Konfigurasi kunci otentikasi RPMB sesuai spesifikasi keamanan platform MediaTek.
+               │
+[ 5. Reballing & Pemasangan IC Baru ]
+  └── Pasang plat cetak stensil BGA-153/221 pada IC baru.
+  └── Ratakan pasta timah solder Sn63Pb37 dan panaskan pada suhu 280°C - 300°C.
+  └── Posisikan IC pada motherboard dengan presisi panduan garis silkscreen.
+  └── Reflow solder pada suhu 350°C hingga IC terlihat mengapung dan sejajar (*self-aligning*).
+               │
+[ 6. Uji Kelayakan & Flashing Akhir ]
+  └── Bersihkan sisa fluks dengan cairan Isopropil Alkohol (IPA 99%).
+  └── Ukur nilai resistansi/impedansi terhadap ground pada rel VCC (3.3V) dan VCCQ (1.8V).
+  └── Sambungkan motherboard ke komputer via USB dan lakukan *scatter flashing* via SP Flash Tool.
+```
 
 ---
 
-*Laporan ini disusun sebagai dokumentasi teknis forensik perangkat keras oleh Samuel Indra Bastian.*
+*Laporan ini disusun secara independen sebagai dokumentasi teknis forensik perangkat keras dan panduan perbaikan chip-level oleh Samuel Indra Bastian.*
