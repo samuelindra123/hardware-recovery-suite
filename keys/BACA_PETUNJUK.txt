@@ -1,0 +1,12 @@
+﻿PANDUAN CADANGAN KUNCI (ADB KEY)
+================================
+
+File di dalam folder ini (adbkey dan adbkey.pub) adalah "KTP / Kunci Identitas" laptop ini.
+Tablet Advan XTab Anda sudah mengenali kunci ini selamanya.
+
+JIKA SUATU SAAT LAPTOP / WINDOWS DI-RESET / INSTALL ULANG:
+1. Simpan folder ini ke Flashdisk atau Google Drive.
+2. Setelah Windows baru selesai di-install, buka folder:
+   C:\Users\<Nama_User_Anda>\.android\
+3. Salin (copy-paste) kedua file (adbkey dan adbkey.pub) ke dalam folder tersebut.
+4. Selesai! Tablet Advan XTab akan langsung mengenali laptop baru Anda tanpa minta izin sama sekali.
